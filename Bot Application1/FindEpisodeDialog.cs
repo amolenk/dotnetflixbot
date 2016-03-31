@@ -1,4 +1,5 @@
 ﻿using Microsoft.Bot.Builder.Dialogs;
+using Microsoft.Bot.Builder.Luis;
 using Microsoft.Bot.Connector;
 using System;
 using System.Collections.Generic;
@@ -7,24 +8,19 @@ using System.Threading.Tasks;
 
 namespace Bot_Application1
 {
+    [LuisModel("2e70a61d-545d-49b5-a95a-0c8044deec65", "6484e25743944bbb88d7b52949c36e2b")]
     [Serializable]
-    public class FindEpisodeDialog : IDialog
+    public class FindEpisodeDialog : LuisDialog
     {
         private List<Episode> _episodes;
 
-        public Task StartAsync(IDialogContext context)
+        [LuisIntent("Find an episode")]
+        public async Task FindAnEpisode(IDialogContext context, LuisResult result)
         {
-            context.Wait(MessageReceivedAsync);
-
-            return Task.CompletedTask;
-        }
-
-        public async Task MessageReceivedAsync(IDialogContext context, IAwaitable<Message> argument)
-        {
-            var message = await argument;
-            if (message.Text.StartsWith("find"))
+            EntityRecommendation entity;
+            if (result.TryFindEntity("subject", out entity))
             {
-                var subject = message.Text.Substring("find".Length).Trim();
+                var subject = entity.Entity;
 
                 _episodes = await DotnetflixDB.FindEpisodesAsync(subject);
                 if (_episodes.Any())
@@ -44,14 +40,16 @@ namespace Bot_Application1
                 else
                 {
                     await context.PostAsync("Found nothing on " + subject);
-                    context.Wait(MessageReceivedAsync);
+                    context.Wait(MessageReceived);
                 }
             }
-            else
-            {
-                await context.PostAsync("I didn't get that.");
-                context.Wait(MessageReceivedAsync);
-            }
+        }
+
+        [LuisIntent("")]
+        public async Task None(IDialogContext context, LuisResult result)
+        {
+            await context.PostAsync("I didn't get that.");
+            context.Wait(MessageReceived);
         }
 
         public async Task AfterSelectAsync(IDialogContext context, IAwaitable<int> argument)
@@ -62,7 +60,7 @@ namespace Bot_Application1
 
             await context.PostAsync("Ok, here's the link: " + episode.Link);
 
-            context.Wait(MessageReceivedAsync);
+            context.Wait(MessageReceived);
         }
     }
 }
